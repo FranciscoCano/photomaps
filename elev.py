@@ -5,7 +5,9 @@ import urllib
 ELEVATION_BASE_URL = 'http://maps.google.com/maps/api/elevation/json'
 CHART_BASE_URL = 'http://chart.googleapis.com/chart'
 
-def getChart(chartData, chartDataScaling="-500,5000", chartType="lc",chartLabel="Elevation in Meters",chartSize="500x160", chartColor="orange", **chart_args):
+def getChart(chartData, chartDataScaling="-500,5000", chartType="lc",\
+    chartLabel="Elevation in Meters", chartSize="500x160", chartColor="orange", **chart_args):
+    
     chart_args.update({
         'cht': chartType,
         'chs': chartSize,
@@ -21,10 +23,7 @@ def getChart(chartData, chartDataScaling="-500,5000", chartType="lc",chartLabel=
 
     chartUrl = CHART_BASE_URL + '?' + urllib.urlencode(chart_args)
 
-    print("")
-    print("Elevation Chart URL:")
-    print("")
-    print chartUrl
+    print("Elevation Chart URL:", chartUrl)
 
 
 def getElevation(path="36.578581,-118.291994|36.23998,-116.83171",samples="100",sensor="false", **elvtn_args):
@@ -42,7 +41,9 @@ def getElevation(path="36.578581,-118.291994|36.23998,-116.83171",samples="100",
     elevationArray = []
 
     for resultset in response['results']:
-      elevationArray.append(resultset['elevation'])
+        elevationArray.append(resultset['elevation'])
+    print response['results']
+    print elevationArray
 
     # Create the chart passing the array of elevation data
     getChart(chartData=elevationArray)   
@@ -60,11 +61,11 @@ if __name__ == '__main__':
     # from the user
     startStr = raw_input('Enter the start latitude,longitude value (default Mt. Whitney) --> ').replace(' ','')
     if not startStr:
-      startStr = "36.578581,-118.291994"
+        startStr = "36.578581,-118.291994"
 
     endStr = raw_input('Enter the end latitude,longitude value (default Death Valley) --> ').replace(' ','')
     if not endStr:
-      endStr = "36.23998,-116.83171"
+        endStr = "36.23998,-116.83171"
 
     pathStr = startStr + "|" + endStr
 

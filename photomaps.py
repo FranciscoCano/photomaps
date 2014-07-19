@@ -110,7 +110,7 @@ def calculate_cloud_center(cloud):
     return center
 
 
-def process_images():
+def process_images(prefix='map', maptype='hybrid'):
     coords = []
     for image in IMAGES:
         exif_info = get_exif(image)
@@ -118,9 +118,9 @@ def process_images():
         if not p:
             continue
         coords.append(p)
-    urls = generate_map_urls(coords, WIDTH, HEIGHT)
-    call_paths(urls, prefix='map')
-    generate_composite_map(urls, WIDTH, HEIGHT)
+    urls = generate_map_urls(coords, maptype, WIDTH, HEIGHT)
+    call_paths(urls, prefix)
+    #generate_composite_map(urls, WIDTH, HEIGHT)
 
 
 def generate_composite_map(urls, width, height):
@@ -153,7 +153,6 @@ def generate_composite_map(urls, width, height):
             image = Image.open('map_{:04d}.png'.format(j + (height - i - 1) * width))
             composite.paste(image, (j * offset_x + j, i * offset_y + 6 + i))
             composite.save('composite.png')
-            
 
 
 def process_paths():
@@ -182,6 +181,7 @@ def call_paths(urls, prefix='map'):
         filename = '{}_{:04d}.png'.format(prefix, i)
         i = i + 1
         percent = percent + 100 / len(urls)
+        image = image.crop((0, 0, 1280, 1232))
         image.save(filename)
     sys.stdout.write("\rGenerating images... 100%. Complete!\n".format(percent))
     sys.stdout.flush()
@@ -199,13 +199,13 @@ def generate_paths_url(sources, destinations):
     base_url += urllib.urlencode(params)
     for source in sources:
         for destination in destinations:
-            base_url += '&path=color:0xff0000ff|weight:1|geodesic:true'
-            base_url += urllib.urlencode('|' + source)
-            base_url += urllib.urlencode('|' + destination)
-    return base_url
+            base_url += '&path=color:0xff0000C0|weight:1|geodesic:true'
+            base_url += urllib.quote_plus('|{}'.format(source))
+            base_url += urllib.quote_plus('|{}'.format(destination))
+    return [base_url]
 
 
-def generate_map_urls(coords, width=1, height=1):
+def generate_map_urls(coords, maptype='hybrid', width=1, height=1):
     locs = []
     for p in coords:
         loc = {'lat':p.lat, 'lng':p.lng}
@@ -218,7 +218,7 @@ def generate_map_urls(coords, width=1, height=1):
     params['format'] = 'png'
     params['sensor'] = 'false'
     params['visual_refresh'] = 'false'
-    params['maptype'] = 'hybrid'
+    params['maptype'] = maptype
     if ZOOM is None:
         ZOOM = calc_zoom(limits, width, height)
     params['zoom'] = ZOOM
@@ -241,11 +241,6 @@ def generate_map_urls(coords, width=1, height=1):
         for point in grouped_points:
             base_url += '%7C{:2.6f},{:3.6f}'.format(point.lat,point.lng)
         base_url += '&center=' + str(centers[center][1]) + ',' + str(centers[center][0])
-        #base_url += '&markers=color:red%7C{:2.6f},{:3.6f}'.format(centers[center][1],centers[center][0])
-        #base_url += '&markers=color:yellow%7C{:2.6f},{:3.6f}'.format(limits['min_lat'], limits['min_lng'])
-        #base_url += '&markers=color:yellow%7C{:2.6f},{:3.6f}'.format(limits['min_lat'], limits['max_lng'])
-        #base_url += '&markers=color:yellow%7C{:2.6f},{:3.6f}'.format(limits['max_lat'], limits['min_lng'])
-        #base_url += '&markers=color:yellow%7C{:2.6f},{:3.6f}'.format(limits['max_lat'], limits['max_lng'])
         urls.append(base_url)
     return urls
 
@@ -325,9 +320,9 @@ def generate_paths_urls(legs, width=1, height=1):
         # base_url += '&markers=color:yellow%7C{:2.6f},{:3.6f}'.format(limits['max_lat'], limits['max_lng'])
         # print base_url
         if CAR == True:
-            base_url += '&path=color:0x0000ffff|weight:2|enc:' + polyline
+            base_url += '&path=color:0xff0000C0|weight:2|enc:' + polyline
         else:
-            base_url += '&path=color:0x0000ffff|weight:2|geodesic:true'
+            base_url += '&path=color:0xff0000C0|weight:2|geodesic:true'
             for leg in legs:
                 base_url += '|' + urllib.quote_plus(leg)
         urls.append(base_url)
@@ -354,6 +349,7 @@ def get_directions(source, destination, waypoints=None):
         url += '&waypoints='
         for waypoint in waypoints:
             url += urllib.quote_plus(waypoint) + '|'
+    print url
     req = Request(url)
     response = urllib2.urlopen(req)
     m = response.read()
@@ -406,6 +402,9 @@ def main():
         help="specify the zoom to be used in the maps (default = 3)")
     parser.add_argument("-c", "--car", dest="car", action="store_true", help="select car as the vehicle for map")
     parser.add_argument("-f", "--frame", dest="frame", action="store", help="percent of the grid side to extend the margins of the map")
+    parser.add_argument("--prefix", dest="prefix", action="store", help="prefix for image file names")
+    parser.add_argument("-t", "--type", dest="maptype", choices=['roadmap', 'satellite', 'terrain', 'hybrid'],\
+        action="store", help="type of the map")
     options = parser.parse_args()
 
     global IMAGES, SOURCES, DESTINATIONS, RADIUS, PATH, WIDTH, HEIGHT, ZOOM, CAR, FRAME
@@ -414,6 +413,8 @@ def main():
     HEIGHT = 1
     ZOOM = None
     FRAME = 0.05
+    prefix = None
+    maptype = None
 
     # Process msisdn option
     if options.images:
@@ -432,7 +433,6 @@ def main():
         PATH = [leg for leg in options.path]
     elif options.sources:
         SOURCES = [source for source in options.sources]
-        print SOURCES, len(SOURCES)
         if options.destinations:
             DESTINATIONS = [dest for dest in options.destinations]
         else:
@@ -458,9 +458,15 @@ def main():
     
     if options.frame:
         FRAME = float(options.frame)
+    
+    if options.prefix:
+        prefix = options.prefix
+    
+    if options.maptype:
+        maptype = options.maptype
 
     if "IMAGES" in globals():
-        process_images()
+        process_images(prefix, maptype)
     elif "SOURCES" in globals():
         process_paths()
     elif "PATH" in globals():
